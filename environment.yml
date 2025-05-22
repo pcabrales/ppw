@@ -1,0 +1,31 @@
+name: prototwin-pet-washout
+channels:
+  - conda-forge
+  - simpleitk
+dependencies:
+  - python=3.11.9
+  - pip
+  - parallelproj=1.8.0
+  - libparallelproj=1.8.0
+  - cupy
+  - itk
+  - scipy
+  - matplotlib
+  - pandas
+  - tqdm
+  - seaborn
+  - pytest
+  - hdbscan  # for clustering of decay
+  - simpleitk
+  - timm
+  - pytorch
+  - torchvision
+  - torchmetrics
+  - ptflops
+  - pip:
+    - pyradiomics  # for radiomics feature extraction
+    - batchgenerators
+    - pytorch-ssim
+    - monai
+    - opencv-python
+
