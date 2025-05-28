@@ -227,7 +227,10 @@ def dynamic_decay_reconstruction(
     start_time = 0
     end_time = end_time * 60 * 1e12  # in picoseconds
     frame_duration_ps = frame_duration * 60 * 1e12  # in picoseconds
-    frame_edges = np.arange(start_time, end_time + frame_duration_ps, frame_duration_ps)
+    num_frames = np.round(end_time / frame_duration_ps).astype(int)
+    frame_edges = np.linspace(
+        start_time, end_time, num_frames + 1
+    )  # in picoseconds, creating edges for the frames
     frame_labels = np.arange(len(frame_edges) - 1)
     frame_times = (
         (frame_edges[:-1] + frame_edges[1:]) / 2 / 1e12
@@ -235,7 +238,6 @@ def dynamic_decay_reconstruction(
     events["frame"] = pd.cut(
         events["emission_time"], bins=frame_edges, labels=frame_labels, right=False
     )
-    num_frames = len(frame_labels)
     if patient_info_path is not None:
         with open(patient_info_path, "a") as patient_info_file:
             patient_info_file.write(f"Number of events: {events.shape[0]}\n")
