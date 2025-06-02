@@ -6,13 +6,11 @@ This repository was developed by Pablo Cabrales, PhD candidate at the Nuclear Ph
 
 ## Introduction 📚
 
-The distribution of produced isotopes during proton therapy can be imaged with Positron Emission Tomography (PET), potentially enabling dose delivery verification. However, biological washout---driven by processes like perfusion and cellular metabolism---reduces PET signal-to-noise ratio (SNR) and limits reliable quantitative analysis. To improve estimation of washout parameters in post-proton-therapy PET---thereby enabling correction for biological washout---and to map intratumoral heterogeneity in washout dynamics as a marker of tumor status and treatment response, we propose a deep learning, uncertainty-aware framework. The models are trained on Monte Carlo–simulated data from 8 head-and-neck cancer patients, and tested on 4 additional head-and-neck and 1 liver patient. Each patient is represented by 75 digital twins with different tumoral washout dynamics and imaged 15 minutes after treatment, when slow washout components dominate. We compare two approaches: direct deep learning estimation of washout rate maps from the noisy PET frames, and deep learning correction of washout rate maps fitted to the PET frames.  We also propose a novel metric, the washout fraction, which quantifies the contribution of medium and fast washout components to the reduction in activity occurring between the end of treatment and the start of PET imaging.
-
-## Goal of the Repository 🎯
-
-This repository is intended to provide the code and instructions for any researchers or developers interested in using this framework to map washout dynamics from post-proton therapy PET. To use the framework, the user must follow the steps outlined below, generating the dataset and training a deep learning model. Once trained, the model can be used for inference.
+The distribution of produced isotopes during proton therapy can be imaged with Positron Emission Tomography (PET), potentially enabling dose delivery verification. However, biological washout---driven by processes like perfusion and cellular metabolism---reduces PET signal-to-noise ratio (SNR) and limits reliable quantitative analysis. To improve estimation of washout parameters in post-proton-therapy PET---thereby enabling correction for biological washout---and to map intratumoral heterogeneity in washout dynamics as a marker of tumor status and treatment response, we propose a deep learning, uncertainty-aware framework. The models are trained on Monte Carlo–simulated data from 8 head-and-neck cancer patients, and tested on 4 additional head-and-neck and 1 liver patient. Each patient is represented by 75 digital twins with different tumoral washout dynamics and imaged 15 minutes after treatment, when slow washout components dominate. We compare two approaches: direct deep learning estimation of washout rate maps from the noisy PET frames, and deep learning correction of washout rate maps fitted to the PET frames. Results demonstrated significantly improved resolution and accuracy, with the fit correction approach reducing median absolute errors by 65%. For intratumoral regions with volumes as small as 3mL, errors predominantly fall below thresholds for differentiating vascular status. The model generalizes across anatomical areas, PET scanners, and acquisition delays. We also propose a novel metric, the washout fraction, which quantifies the contribution of medium and fast washout components to the reduction in activity occurring between the end of treatment and the start of PET imaging. This study highlights the potential of deep learning and modern time-of-flight PET to non-invasively map washout kinetics, supporting dose verification, tumor characterization, and potential treatment adaptation. 
 
 Developing the PPW framework involves two main steps. First, a dataset of ground truth biological washout parameter maps is generated, and the corresponding proton therapy treatments and PET acquisitions are simulated. Second, a deep learning model is trained using this dataset to estimate biological washout and washout rate maps. We develop the framework based on an offline PET imaging workflow for head and neck cancer patients. However, substantial changes in application conditions may require redeveloping the framework, including dataset generation and model retraining, to achieve optimal performance. To enable this adaptation, we have open-sourced the framework code here and highlighted the variables that need to be modified in the code.
+
+PROTOTWIN-PET Washout is part of the PROTOTWIN project, which aims to guide proton therapy using PET imaging, in this case by improving dose verification and biological tumor characterization.
 
 ## Repository Table of Contents 📑
 1. [Data](/data)
@@ -101,7 +99,7 @@ python src/generate_dataset_direct_estimation.py
 - Other files, including the tumor mask and the patient CT.
 
 ### Step 3: Train and/or Test the Deep Learning Model 🤖
-Run the main script, changing the `USER-DEFINED PROTOTWIN-PET PARAMETERS` inside the script as needed:
+Run the main script, changing the `USER-DEFINED PROTOTWIN-PET PARAMETERS` inside the script as needed. To train the model, set `train_model_flag = True`. To test the model, set it to `False`.
 - For the fit correction approach (see introduction for details):
 ```bash
 python src/run_model_fit_correction.py
@@ -127,9 +125,5 @@ python src/run_model_direct_estimation.py
 
 ## License 📄
 This project is under a GNU General Public License v3.0.
-
-
-## Acknowledgments
-PROTOTWIN-PET Washout is part of the PROTOTWIN project, which aims to guide proton therapy using PET imaging, in this case by improving dose verification and biological tumor characterization.
 
 ---

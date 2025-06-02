@@ -12,7 +12,7 @@ import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
-from scipy.stats import wilcoxon
+from scipy.stats import wilcoxon, shapiro, skew
 from utils_model import sparsification_error_batched
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -154,6 +154,8 @@ def test(
                     batch_uncertainty = torch.sqrt(
                         batch_aleatoric_uncertainty**2 + batch_epistemic_uncertainty**2
                     )
+                else:
+                    batch_uncertainty = batch_epistemic_uncertainty
                 time_list.append(
                     (time.time() - start_time)
                     * 1000
@@ -421,6 +423,16 @@ def test(
         ssim_input_list = torch.tensor(ssim_input_list)
         output_error_list = torch.cat(output_error_list)
         ssim_output_list = torch.tensor(ssim_output_list)
+        
+        _, p_error_input_normality = shapiro(input_error_list.cpu().numpy())  # Shapiro-Wilk test for normality
+        skew_val_input_error = skew(input_error_list.cpu().numpy(), bias=False)  # Fisher‐Pearson, unbiased (Direction of asymmetry (negative = left-skew))
+        _, p_ssim_input_normality = shapiro(ssim_input_list.cpu().numpy())  # Shapiro-Wilk test for normality
+        skew_val_ssim_input = skew(ssim_input_list.cpu().numpy(), bias=False)  # Fisher‐Pearson, unbiased (Direction of asymmetry (negative = left-skew))
+        _, p_error_output_normality = shapiro(output_error_list.cpu().numpy())  # Shapiro-Wilk test for normality
+        skew_val_output_error = skew(output_error_list.cpu().numpy(), bias=False)  # Fisher‐Pearson, unbiased (Direction of asymmetry (negative = left-skew))
+        _, p_ssim_output_normality = shapiro(ssim_output_list.cpu().numpy())  # Shapiro-Wilk test for normality
+        skew_val_ssim_output = skew(ssim_output_list.cpu().numpy(), bias=False)  # Fisher‐Pearson, unbiased (Direction of asymmetry (negative = left-skew))
+        
         if epistemic_uncertainty or aleatoric_uncertainty:
             total_uncertainty_list = torch.cat(total_uncertainty_list)
             remaining_pixels_list = torch.cat(remaining_pixels_list)
@@ -428,37 +440,45 @@ def test(
         if not estimating_washout_fraction:
             text_results = (
                 "Corrected output vs target:\n"
-                f"Washout Rate Median Absolute Error (min⁻¹): {torch.median(output_error_list):.6f} +- {torch.quantile(output_error_list, 0.75) - torch.quantile(output_error_list, 0.25):.6f}\n"
-                f"SSIM: {torch.mean(ssim_output_list):.4f} +- {torch.std(ssim_output_list):.4f}\n"
-                f"\nTime per loading (ms): {np.mean(np.array(time_list)):.4f} +- {np.std(np.array(time_list)):.4f}"
+                f"Washout Rate Median Absolute Error (IQR) [min⁻¹]: {torch.median(output_error_list):.6f} ({torch.quantile(output_error_list, 0.25):.6f} --- {torch.quantile(output_error_list, 0.75):.6f})\n"
+                f"Absolute Error Shapiro-Wilk p-value: {p_error_output_normality:.3e} (Skewness: {skew_val_output_error:.3f})\n"
+                f"medSSIM (IQR): {torch.median(ssim_output_list):.4f} ({torch.quantile(ssim_output_list, 0.25):.4f} --- {torch.quantile(ssim_output_list, 0.75):.4f})\n"
+                f"SSIM Shapiro-Wilk p-value: {p_ssim_output_normality:.3e} (Skewness: {skew_val_ssim_output:.3f})\n"
+                f"Time per loading (ms): {np.mean(np.array(time_list)):.4f} +- {np.std(np.array(time_list)):.4f}\n"
             )
             if not no_fit:
                 # if directly estimating the washout map from the PET frames, there is no Uncorrected input
                 text_results = (
                     "Uncorrected input vs target:\n"
-                    f"Washout Rate Median Absolute Error (min⁻¹): {torch.median(input_error_list):.6f} +- {torch.quantile(input_error_list, 0.75) - torch.quantile(input_error_list, 0.25):.6f}\n"
-                    f"SSIM: {torch.mean(ssim_input_list):.4f} +- {torch.std(ssim_input_list):.4f}\n"
-                    f"\n\n" + text_results
+                    f"Washout Rate Median Absolute Error (IQR) [min⁻¹]: {torch.median(input_error_list):.6f} ({torch.quantile(input_error_list, 0.25):.6f} --- {torch.quantile(input_error_list, 0.75):.6f})\n"
+                    f"Absolute Error Shapiro-Wilk p-value: {p_error_input_normality:.3e} (Skewness: {skew_val_input_error:.3f})\n"
+                    f"medSSIM (IQR): {torch.median(ssim_input_list):.4f} ({torch.quantile(ssim_input_list, 0.25):.4f} --- {torch.quantile(ssim_input_list, 0.75):.4f})\n"
+                    f"SSIM Shapiro-Wilk p-value: {p_ssim_input_normality:.3e} (Skewness: {skew_val_ssim_input:.3f})\n"
+                    f"\n" + text_results
                 )
             if epistemic_uncertainty:
                 total_uncertainty_list = torch.tensor(total_uncertainty_list)
-                text_results += f"\n\nWashout Rate Uncertainty (std) (min⁻¹): {torch.median(total_uncertainty_list):.4f} +- {torch.quantile(total_uncertainty_list, 0.75) - torch.quantile(total_uncertainty_list, 0.25):.4f}"
+                text_results += f"\n\nWashout Rate Uncertainty (IQR) [min⁻¹]: {torch.median(total_uncertainty_list):.4f} ({torch.quantile(total_uncertainty_list, 0.25):.4f} --- {torch.quantile(total_uncertainty_list, 0.75):.4f})"
 
         else:
             text_results = (
                 "Washout Fraction Results"
                 "Uncorrected input vs target:\n"
-                f"Median Absolute Error (%): {torch.median(input_error_list):.6f} +- {torch.quantile(input_error_list, 0.75) - torch.quantile(input_error_list, 0.25):.6f}\n"
-                f"SSIM: {torch.mean(ssim_input_list):.4f} +- {torch.std(ssim_input_list):.4f}\n"
-                f"\n\nCorrected output vs target:\n"
-                f"Median Absolute Error (%) {torch.median(output_error_list):.6f} +- {torch.quantile(output_error_list, 0.75) - torch.quantile(output_error_list, 0.25):.6f}\n"
-                f"SSIM: {torch.mean(ssim_output_list):.4f} +- {torch.std(ssim_output_list):.4f}\n"
-                f"\nTime per loading (ms): {np.mean(np.array(time_list)):.4f} +- {np.std(np.array(time_list)):.4f}"
+                f"Median Absolute Error (IQR) [%]: {torch.median(input_error_list):.6f} ({torch.quantile(input_error_list, 0.25):.6f} --- {torch.quantile(input_error_list, 0.75):.6f})\n"
+                f"Absolute Error Shapiro-Wilk p-value: {p_error_input_normality:.3e} (Skewness: {skew_val_input_error:.3f})\n"
+                f"medSSIM (IQR): {torch.median(ssim_input_list):.4f} ({torch.quantile(ssim_input_list, 0.25):.4f} --- {torch.quantile(ssim_input_list, 0.75):.4f})\n"
+                f"SSIM Shapiro-Wilk p-value: {p_ssim_input_normality:.3e} (Skewness: {skew_val_ssim_input:.3f})\n"
+                f"\nCorrected output vs target:\n"
+                f"Median Absolute Error (IQR) [%]: {torch.median(output_error_list):.6f} ({torch.quantile(output_error_list, 0.25):.6f} --- {torch.quantile(output_error_list, 0.75):.6f})\n"
+                f"Absolute Error Shapiro-Wilk p-value: {p_error_output_normality:.3e} (Skewness: {skew_val_output_error:.3f})\n"
+                f"medSSIM (IQR): {torch.median(ssim_output_list):.4f} ({torch.quantile(ssim_output_list, 0.25):.4f} --- {torch.quantile(ssim_output_list, 0.75):.4f})\n"
+                f"SSIM Shapiro-Wilk p-value: {p_ssim_output_normality:.3e} (Skewness: {skew_val_ssim_output:.3f})\n"
+                f"Time per loading (ms): {np.mean(np.array(time_list)):.4f} +- {np.std(np.array(time_list)):.4f}\n"
             )
 
             if epistemic_uncertainty:
                 total_uncertainty_list = torch.tensor(total_uncertainty_list)
-                text_results += f"\n\n Uncertainty (std): {torch.median(total_uncertainty_list):.4f} +- {torch.quantile(total_uncertainty_list, 0.75) - torch.quantile(total_uncertainty_list, 0.25):.4f}"
+                text_results += f"\n\n Uncertainty (std): {torch.median(total_uncertainty_list):.4f} +- {torch.quantile(total_uncertainty_list, 0.75) - torch.quantile(total_uncertainty_list, 0.25):.4f}\n"
 
     if save_plot_dir:
         font_size = 25
