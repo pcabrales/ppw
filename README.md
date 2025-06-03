@@ -1,4 +1,4 @@
-# PROTOTWIN-PET-Washout: Mapping Intratumoral Heterogeneity Through PET-derived Washout and Deep Learning After Proton Therapy
+# PROTOTWIN-PET Washout (PPW): Mapping Intratumoral Heterogeneity Through PET-derived Washout and Deep Learning After Proton Therapy
 
 ![](./images/ppw-framework.jpg)
 
