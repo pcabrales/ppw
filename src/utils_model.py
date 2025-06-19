@@ -818,13 +818,13 @@ def plot_sample(
 
     # CT COLORBAR
     if region_types_flag:
-        save_plot_file = os.path.join(save_plot_dir, "voxel-types-maps.jpg")
+        save_plot_file = os.path.join(save_plot_dir, "voxel-types-maps.png")
         cbar_ax = fig.add_axes([0.04, 0.05, 0.14, 0.03])
     elif estimating_washout_fraction:
-        save_plot_file = os.path.join(save_plot_dir, "washout-fraction-maps.jpg")
+        save_plot_file = os.path.join(save_plot_dir, "washout-fraction-maps.png")
         cbar_ax = fig.add_axes([0.03, 0.12, 0.11, 0.03])
     else:
-        save_plot_file = os.path.join(save_plot_dir, "washout-rate-maps.jpg")
+        save_plot_file = os.path.join(save_plot_dir, "washout-rate-maps.png")
         cbar_ax = fig.add_axes([0.03, 0.12, 0.11, 0.03])
     cbar = fig.colorbar(
         cm.ScalarMappable(cmap="gray", norm=Normalize(vmin=vmin_CT, vmax=vmax_CT)),
@@ -832,7 +832,7 @@ def plot_sample(
         orientation="horizontal",
     )
     cbar.ax.tick_params(labelsize=font_size)
-    cbar.set_label("(HU)", fontsize=font_size, labelpad=10)
+    cbar.set_label("HU", fontsize=font_size, labelpad=10)
 
     # DECAY RATE COLORBAR
     if region_types_flag:
@@ -851,10 +851,10 @@ def plot_sample(
     )  # Set the colorbar ticks to scientific notation
     cbar.ax.ticklabel_format(style="sci", axis="x")
     if estimating_washout_fraction:
-        cbar.set_label("Washout Fraction (%)", fontsize=font_size, labelpad=10)
+        cbar.set_label(r"$A_0/A_{0, \mathrm{NW}}$ (%)", fontsize=font_size, labelpad=10)
     else:
         cbar.set_label(
-            "Washout Rate" + r" $\lambda_B$ (min$^{-1}$)",
+            r"$\lambda_B$ (min$^{-1}$)",
             fontsize=font_size,
             labelpad=10,
         )
@@ -873,10 +873,10 @@ def plot_sample(
         # cbar.ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%.4f'))
         # cbar.locator = ticker.MaxNLocator(nbins=3)
         if estimating_washout_fraction:
-            cbar.set_label("Washout Fraction (%)", fontsize=font_size, labelpad=10)
+            cbar.set_label(r"$A_0/A_{0, \mathrm{NW}}$ (%)", fontsize=font_size, labelpad=10)
         else:
             cbar.set_label(
-                "Washout Rate " + r" $\lambda_B$ (min$^{-1}$)",
+                r"$\lambda_B$ (min$^{-1}$)",
                 fontsize=font_size,
                 labelpad=10,
             )
@@ -923,7 +923,7 @@ def plot_sample(
     fig.subplots_adjust(bottom=0.14, left=0.022)
 
     # SAVE PLOT
-    # fig.savefig(save_plot_file, dpi=600, bbox_inches='tight')
+    fig.savefig(save_plot_file, dpi=600, bbox_inches='tight')
     # fig.savefig(save_plot_file[:-3] + "eps", format='eps', bbox_inches='tight')
     # save as pdf
     fig.savefig(save_plot_file[:-3] + "pdf", format="pdf", bbox_inches="tight")

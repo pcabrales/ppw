@@ -47,6 +47,11 @@ def test(
     if input_transforms is None:
         input_transforms = transforms
 
+    if no_fit:
+        correction_approach = "Direct Estimation"
+    else:
+        correction_approach = "Fit Correction"
+        
     # Test loop (after the training is complete)
     time_list = []
 
@@ -439,7 +444,7 @@ def test(
             sparsification_error_list = torch.cat(sparsification_error_list)
         if not estimating_washout_fraction:
             text_results = (
-                "Corrected output vs target:\n"
+                f"{correction_approach} output vs target:\n"
                 f"Washout Rate Median Absolute Error (IQR) [min⁻¹]: {torch.median(output_error_list):.6f} ({torch.quantile(output_error_list, 0.25):.6f} --- {torch.quantile(output_error_list, 0.75):.6f})\n"
                 f"Absolute Error Shapiro-Wilk p-value: {p_error_output_normality:.3e} (Skewness: {skew_val_output_error:.3f})\n"
                 f"medSSIM (IQR): {torch.median(ssim_output_list):.4f} ({torch.quantile(ssim_output_list, 0.25):.4f} --- {torch.quantile(ssim_output_list, 0.75):.4f})\n"
@@ -468,7 +473,7 @@ def test(
                 f"Absolute Error Shapiro-Wilk p-value: {p_error_input_normality:.3e} (Skewness: {skew_val_input_error:.3f})\n"
                 f"medSSIM (IQR): {torch.median(ssim_input_list):.4f} ({torch.quantile(ssim_input_list, 0.25):.4f} --- {torch.quantile(ssim_input_list, 0.75):.4f})\n"
                 f"SSIM Shapiro-Wilk p-value: {p_ssim_input_normality:.3e} (Skewness: {skew_val_ssim_input:.3f})\n"
-                f"\nCorrected output vs target:\n"
+                f"\n{correction_approach} output vs target:\n"
                 f"Median Absolute Error (IQR) [%]: {torch.median(output_error_list):.6f} ({torch.quantile(output_error_list, 0.25):.6f} --- {torch.quantile(output_error_list, 0.75):.6f})\n"
                 f"Absolute Error Shapiro-Wilk p-value: {p_error_output_normality:.3e} (Skewness: {skew_val_output_error:.3f})\n"
                 f"medSSIM (IQR): {torch.median(ssim_output_list):.4f} ({torch.quantile(ssim_output_list, 0.25):.4f} --- {torch.quantile(ssim_output_list, 0.75):.4f})\n"
@@ -489,12 +494,12 @@ def test(
         label_region_sizes = [(bins[i] + bins[i + 1]) / 2 for i in range(len(bins) - 1)]
         labels = [f"{label_region_sizes[i]:.1f}" for i in range(len(bins) - 1)]
         if no_fit:
-            value_vars = ["Corrected"]
-            palette = {"Corrected": colorblind_palette[1]}
+            value_vars = [correction_approach]
+            palette = {correction_approach: colorblind_palette[1]}
         else:
-            value_vars = ["Uncorrected", "Corrected"]
+            value_vars = ["Uncorrected", correction_approach]
             palette = {
-                "Corrected": colorblind_palette[1],
+                correction_approach: colorblind_palette[1],
                 "Uncorrected": colorblind_palette[0],
             }
         if region_types_flag:
@@ -506,7 +511,7 @@ def test(
             df = pd.DataFrame(
                 {
                     "Region Volume (ml)": region_sizes,
-                    "Corrected": region_pred_accuracy,
+                    correction_approach: region_pred_accuracy,
                     "Uncertainty": total_uncertainty,
                 }
             )
@@ -530,14 +535,14 @@ def test(
             # Remove the top 10% of values with most uncertainty
             cut90 = df["Uncertainty"].quantile(0.90)
             cut80 = df["Uncertainty"].quantile(0.80)
-            cutoff_90_label = "Corrected (Top 10% Uncertain Voxels Removed)"
-            cutoff_80_label = "Corrected (Top 20% Uncertain Voxels Removed)"
+            cutoff_90_label = f"{correction_approach} (Top 10% Uncertain Voxels Removed)"
+            cutoff_80_label = f"{correction_approach} (Top 20% Uncertain Voxels Removed)"
 
             # melt only Corrected for each cutoff
             m90 = pd.melt(
                 df[df["Uncertainty"] < cut90],
                 id_vars=["Region Volume (ml)"],
-                value_vars=["Corrected"],
+                value_vars=[correction_approach],
                 var_name="Type",
                 value_name="Accuracy (%)",
             )
@@ -546,7 +551,7 @@ def test(
             m80 = pd.melt(
                 df[df["Uncertainty"] < cut80],
                 id_vars=["Region Volume (ml)"],
-                value_vars=["Corrected"],
+                value_vars=[correction_approach],
                 var_name="Type",
                 value_name="Accuracy (%)",
             )
@@ -562,7 +567,7 @@ def test(
 
             palette_accuracy = {
                 "Uncorrected": colorblind_palette[0],
-                "Corrected": colorblind_palette[1],
+                correction_approach: colorblind_palette[1],
                 cutoff_90_label: colorblind_palette[2],
                 cutoff_80_label: colorblind_palette[3],
             }
@@ -571,7 +576,7 @@ def test(
                 for k, v in palette_accuracy.items()
                 if k in mean_values["Type"].unique()
             }
-            hue_order = ["Uncorrected", "Corrected", cutoff_90_label, cutoff_80_label]
+            hue_order = ["Uncorrected", correction_approach, cutoff_90_label, cutoff_80_label]
             hue_order = [h for h in hue_order if h in mean_values["Type"].unique()]
 
             fig, ax = plt.subplots(figsize=(12, 7))
@@ -584,6 +589,8 @@ def test(
                 hue_order=hue_order,
                 ax=ax,
             )
+            
+            print(f"Region Volume vs Accuracy: {mean_values}")
 
             # remove the automatic axes legend
             if ax.get_legend() is not None:
@@ -614,6 +621,14 @@ def test(
                 format="pdf",
                 bbox_inches="tight",
             )
+            
+            plt.savefig(
+                os.path.join(
+                    save_plot_dir, "accuracy-vs-size-region-classification.png"
+                ),
+                format="png",
+                bbox_inches="tight",
+            )
 
         else:
             # Plot boxplot of error vs region volume
@@ -621,7 +636,7 @@ def test(
             df = pd.DataFrame(
                 {
                     "Region Volume (ml)": region_sizes,
-                    "Corrected": region_output_error_list,
+                    correction_approach: region_output_error_list,
                 }
             )
             if not no_fit:
@@ -650,40 +665,43 @@ def test(
                 showfliers=False,
             )
             if estimating_washout_fraction:
-                plt.ylabel("Washout Fraction Abs. Err. (%)", fontsize=font_size)
+                plt.ylabel(r"$A_0/A_{0, \mathrm{NW}}$ Absolute Error  (%)", fontsize=font_size)
             else:
                 plt.ylabel(
-                    r" Washout Rate $\lambda_{B}$ Abs. Err. (min$^{-1}$)",
+                    r"$\lambda_{B}$ Absolute Error (min$^{-1}$)",
                     fontsize=font_size,
                 )
             plt.xlabel("Region Volume (ml)", fontsize=font_size)
             plt.xticks(fontsize=font_size)
             plt.yticks(fontsize=font_size)
-            plt.legend(title="Type", title_fontsize=font_size, fontsize=font_size)
+            plt.legend(title="Type", title_fontsize=font_size, fontsize=font_size, loc='upper right')
             plt.tight_layout()
             if estimating_washout_fraction:
-                plt.savefig(
-                    os.path.join(save_plot_dir, "error-vs-size-washout-fraction.pdf"),
-                    format="pdf",
-                    bbox_inches="tight",
-                )
+                string_approach = "washout-fraction"
             else:
-                plt.savefig(
-                    os.path.join(save_plot_dir, "error-vs-size-washout-rate.pdf"),
-                    format="pdf",
-                    bbox_inches="tight",
-                )
+                string_approach = "washout-rate"
+                
+            plt.savefig(
+                os.path.join(save_plot_dir, f"error-vs-size-{string_approach}.pdf"),
+                format="pdf",
+                bbox_inches="tight",
+            )
+            plt.savefig(
+                os.path.join(save_plot_dir, f"error-vs-size-{string_approach}.png"),
+                format="png",
+                bbox_inches="tight",
+            )
 
             # save results to text file
             text_results += "\n\nRegion Volume vs Error:\n"
-            text_results += "Region Volume (ml) | Uncorrected Mean | Uncorrected Std | Corrected Mean | Corrected Std | p-value\n"
+            text_results += f"Region Volume (ml) | Uncorrected Mean | Uncorrected Std | {colorblind_palette} Mean | {correction_approach} Std | p-value | n\n"
             text_results += "-" * 100 + "\n"
             for region_vol in labels:
                 # Get data for this region volume
                 region_data = df[df["Region Volume (ml)"] == region_vol]
 
                 # Extract uncorrected and corrected errors
-                corrected = region_data["Corrected"].values
+                corrected = region_data[correction_approach].values
                 corr_mean = np.mean(corrected)
                 corr_std = np.std(corrected)
 
@@ -699,7 +717,7 @@ def test(
                     p_value = np.nan
 
                 # Append to output string
-                text_results += f"{region_vol:<16} | {uncorr_mean:.6f}      | {uncorr_std:.6f}       | {corr_mean:.6f}     | {corr_std:.6f}    | {p_value:.10f}\n"
+                text_results += f"{region_vol:<16} | {uncorr_mean:.6f}      | {uncorr_std:.6f}       | {corr_mean:.6f}     | {corr_std:.6f}    | {p_value:.10f} | {len(corrected)}\n"
 
             # Plot boxplot of ssim vs region volume
             bins_ssim = np.array(ssim_region_sizes).max() * np.linspace(
@@ -717,7 +735,7 @@ def test(
             df = pd.DataFrame(
                 {
                     "Region Volume (ml)": ssim_region_sizes,
-                    "Corrected": region_ssim_output_list,
+                    correction_approach: region_ssim_output_list,
                 }
             )
             if not no_fit:
@@ -801,6 +819,11 @@ def test(
                 plt.savefig(
                     os.path.join(save_plot_dir, "sparsification-error-plot.pdf"),
                     format="pdf",
+                    bbox_inches="tight",
+                )
+                plt.savefig(
+                    os.path.join(save_plot_dir, "sparsification-error-plot.png"),
+                    format="png",
                     bbox_inches="tight",
                 )
     # Save to file
