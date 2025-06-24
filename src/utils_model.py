@@ -1444,3 +1444,9 @@ def save_model_complexity(
     with open(model_sizes_txt, "a") as file:
         file.write(complexity_info)
     return None
+
+
+###
+# bug_test. create a simple but typical bug
+int("not a number")  # This will raise a ValueError
+###
