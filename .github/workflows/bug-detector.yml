@@ -18,12 +18,12 @@ jobs:
         uses: actions/cache@v3
         with:
           path: localai_models
-          key: ${{ runner.os }}-localai-qwen2.5-coder-14b
+          key: ${{ runner.os }}-localai-qwen3-8b
 
       - name: Start LocalAI (with cached models)
         run: |
           # Pull the latest LocalAI image
-          docker pull localai/localai:master-ffmpeg-core
+          docker pull localai/localai:latest
 
           # Run LocalAI, mounting our cache directory
           docker run -d --name local-ai \
@@ -31,8 +31,8 @@ jobs:
             -v ${{ github.workspace }}/localai_models:/usr/share/local-ai/models \
             -e MODELS_PATH=/usr/share/local-ai/models \
             -u $(id -u):$(id -g) \
-            localai/localai:master-ffmpeg-core \
-            run --debug qwen2.5-coder-14b
+            localai/localai:latest \
+            run --debug qwen3-8b
 
           # Wait until the container reports healthy
           until [ "$(docker inspect -f '{{.State.Health.Status}}' local-ai)" = "healthy" ]; do
@@ -76,7 +76,7 @@ jobs:
 
           # 3. Build the JSON payload -------------------------------------------------------------------------
           jq -R -s --arg prompt "$PROMPT" '{
-            model: "qwen2.5-coder-14b",
+            model: "qwen3-8b",
             temperature: 0.2,   
             top_p: 0.95,       
             max_tokens: 512,
