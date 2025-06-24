@@ -18,7 +18,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: localai_models
-          key: ${{ runner.os }}-localai-hermes-2-theta-llama-3-8b
+          key: ${{ runner.os }}-localai-qwen2.5-coder-14b
 
       - name: Start LocalAI (with cached models)
         run: |
@@ -32,7 +32,7 @@ jobs:
             -e MODELS_PATH=/usr/share/local-ai/models \
             -u $(id -u):$(id -g) \
             localai/localai:master-ffmpeg-core \
-            run --debug hermes-2-theta-llama-3-8b
+            run --debug qwen2.5-coder-14b
 
           # Wait until the container reports healthy
           until [ "$(docker inspect -f '{{.State.Health.Status}}' local-ai)" = "healthy" ]; do
@@ -76,7 +76,7 @@ jobs:
 
           # 3. Build the JSON payload -------------------------------------------------------------------------
           jq -R -s --arg prompt "$PROMPT" '{
-            model: "hermes-2-theta-llama-3-8b",
+            model: "qwen2.5-coder-14b",
             temperature: 0.2,   
             top_p: 0.95,       
             max_tokens: 512,
