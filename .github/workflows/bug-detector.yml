@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  MODEL_NAME: hermes-2-theta-llama-3-8b   # default; can be overridden in workflow_dispatch
+
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -19,7 +22,16 @@ jobs:
         uses: actions/cache@v3
         with:
           path: localai_models
-          key: ${{ runner.os }}-localai-hermes-2-theta-llama-3-8b
+          key: ${{ runner.os }}-localai-${{ env.MODEL_NAME }}
+          
+      # Download the model once if not cached
+      - name: Install model (if missing)
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/localai_models:/usr/share/local-ai/models \
+            -e MODELS_PATH=/usr/share/local-ai/models \
+            localai/localai:master-ffmpeg-core \
+            local-ai models install "$MODEL_NAME"
 
       - name: Start LocalAI (with cached models)
         run: |
@@ -33,7 +45,7 @@ jobs:
             -e MODELS_PATH=/usr/share/local-ai/models \
             -u $(id -u):$(id -g) \
             localai/localai:master-ffmpeg-core \
-            run --debug hermes-2-theta-llama-3-8b
+            run --debug "$MODEL_NAME"
 
           # Wait until the container reports healthy
           until [ "$(docker inspect -f '{{.State.Health.Status}}' local-ai)" = "healthy" ]; do
@@ -44,8 +56,9 @@ jobs:
       - name: Run Bug Detector
         env:
           GH_BEFORE: ${{ github.event.before }}
+          MODEL_NAME: ${{ env.MODEL_NAME }}
         run: |
-          set -e
+          set -euo pipefail
 
           # 1. Compute the diff ------------------------------------------------------
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
@@ -77,8 +90,8 @@ jobs:
           )
 
           # 3. Build the JSON payload -----------------------------------------------
-          jq -R -s --arg prompt "$PROMPT" '{
-            model: "hermes-2-theta-llama-3-8b",
+          jq -R -s --arg prompt "$PROMPT" --arg model "$MODEL_NAME" '{
+            model: $model,
             temperature: 0.2,   
             top_p: 0.95,       
             max_tokens: 512,
