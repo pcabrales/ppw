@@ -47,25 +47,28 @@ jobs:
             DIFF="$(git show HEAD)"
           fi
           # 2. Write the JSON payload to a file
-          cat <<EOF > payload.json
+          echo "$DIFF" | jq -R -s '
           {
-            "model": "gpt4all-lora-quantized",
+            "model": "hermes-2-theta-llama-3-8b",
             "messages": [
               {"role": "system", "content": "You are a senior software engineer."},
               {"role": "user",   "content": "Review this code diff and list potential bugs or edge cases:\n\n$DIFF"}
             ],
             "max_tokens": 512
           }
-          EOF
+          ' > payload.json
 
-          # 3. Ensure jq is available (optional, for pretty-printing)
           sudo apt-get update && sudo apt-get install -y jq
 
-          # 4. POST via curl using the file
           curl -s -X POST http://localhost:8080/v1/chat/completions \
-            -H "Content-Type: application/json" \
-            --data @payload.json | jq .
+               -H "Content-Type: application/json" \
+               --data @payload.json | jq .
 
+      - name: Fix LocalAI model cache permissions
+        if: always()
+        run: |
+          sudo chown -R $(id -u):$(id -g) localai_models
+          sudo chmod -R a+rX localai_models
 
 # name: LLM-Based Bug Scan (LocalAI)
 
