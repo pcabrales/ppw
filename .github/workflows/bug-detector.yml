@@ -18,7 +18,11 @@ jobs:
 
       - name: Run Bug Detector
         run: |
-          DIFF="$(git diff HEAD~1 HEAD)"
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            DIFF="$(git diff HEAD~1 HEAD)"
+          else
+            DIFF="$(git show HEAD)"
+          fi
           curl -s -X POST http://localhost:8080/v1/chat/completions \
             -H "Content-Type: application/json" \
             -d '{
