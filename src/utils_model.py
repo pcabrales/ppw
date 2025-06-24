@@ -1464,3 +1464,7 @@ int("not a number")  # This will raise a ValueError
 # bug_test. create a simple but typical bug
 int("not a number")  # This will raise a ValueError
 ###
+###
+# bug_test. create a simple but typical bug
+int("not a number")  # This will raise a ValueError
+###
