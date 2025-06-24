@@ -1,28 +1,62 @@
-name: LLM-Based Bug Scan
+name: LLM-Based Bug Scan (LocalAI)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
-  bug_scan:
-    name: Scan for Potential Bugs
+  scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run LLM Bug Detector
-        uses: Just-Moh-it/openai@v0.0.1
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Start LocalAI
+        uses: mudler/localai-github-action@v1
         with:
-          openai-mode: "completion"
-          openai-params: >
-            {
-              "model": "gpt-4",
-              "prompt": "You are a senior software engineer and seasoned coder with an eye for detecting bugs. Review this code diff and list any potential bugs or edge cases:\n\n${{ github.event.head_commit.message }}\n\nDiff:\n$(git diff HEAD~1 HEAD)",
-              "max_tokens": 512,
-              "temperature": 0
-            }
+          model: 'gpt4all-lora-quantized'  # or any model from models.localai.io
+
+      - name: Run Bug Detector
+        run: |
+          DIFF="$(git diff HEAD~1 HEAD)"
+          curl -s -X POST http://localhost:8080/v1/chat/completions \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model":"gpt4all-lora-quantized",
+              "messages":[
+                {"role":"system","content":"You are a senior software engineer."},
+                {"role":"user","content":"Review this code diff and list potential bugs or edge cases:\n\n'"$DIFF"'"}
+              ],
+              "max_tokens":512
+            }' | jq .
+
+
+
+# name: LLM-Based Bug Scan
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   bug_scan:
+#     name: Scan for Potential Bugs
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Run LLM Bug Detector
+#         uses: Just-Moh-it/openai@v0.0.1
+#         env:
+#           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+#         with:
+#           openai-mode: "completion"
+#           openai-params: >
+#             {
+#               "model": "gpt-4",
+#               "prompt": "You are a senior software engineer and seasoned coder with an eye for detecting bugs. Review this code diff and list any potential bugs or edge cases:\n\n${{ github.event.head_commit.message }}\n\nDiff:\n$(git diff HEAD~1 HEAD)",
+#               "max_tokens": 512,
+#               "temperature": 0
+#             }
