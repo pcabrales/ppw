@@ -1,8 +1,9 @@
-name: LLM-Based Bug Scan (LocalAI)
+name: LLM-Based Bug Scan (LocalAI with Cache)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   scan:
@@ -11,10 +12,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Start LocalAI
-        uses: mudler/localai-github-action@v1
+      - name: Restore LocalAI model cache
+        id: cache-model
+        uses: actions/cache@v3
         with:
-          model: 'gpt4all-lora-quantized'  # or any model from models.localai.io
+          path: localai_models
+          key: ${{ runner.os }}-localai-hermes-2-theta-llama-3-8b
+
+      - name: Start LocalAI (with cached models)
+        run: |
+          # Pull the latest LocalAI image
+          docker pull localai/localai:master-ffmpeg-core
+
+          # Run LocalAI, mounting our cache directory
+          docker run -d --name local-ai \
+            -p 8080:8080 \
+            -v ${{ github.workspace }}/localai_models:/usr/share/local-ai/models \
+            -e MODELS_PATH=/usr/share/local-ai/models \
+            localai/localai:master-ffmpeg-core \
+            run --debug hermes-2-theta-llama-3-8b
+
+          # Wait until the container reports healthy
+          until [ "$(docker inspect -f '{{.State.Health.Status}}' local-ai)" = "healthy" ]; do
+            echo "Waiting for LocalAI to be ready…"
+            sleep 2
+          done
 
       - name: Run Bug Detector
         run: |
@@ -26,13 +48,50 @@ jobs:
           curl -s -X POST http://localhost:8080/v1/chat/completions \
             -H "Content-Type: application/json" \
             -d '{
-              "model":"gpt4all-lora-quantized",
+              "model":"hermes-2-theta-llama-3-8b",
               "messages":[
                 {"role":"system","content":"You are a senior software engineer."},
                 {"role":"user","content":"Review this code diff and list potential bugs or edge cases:\n\n'"$DIFF"'"}
               ],
               "max_tokens":512
             }' | jq .
+
+
+# name: LLM-Based Bug Scan (LocalAI)
+
+# on:
+#   push:
+#     branches: [ main ]
+
+# jobs:
+#   scan:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Start LocalAI
+#         uses: mudler/localai-github-action@v1
+#         with:
+#           model: 'gpt4all-lora-quantized'  # or any model from models.localai.io
+
+#       - name: Run Bug Detector
+#         run: |
+#           if git rev-parse HEAD~1 >/dev/null 2>&1; then
+#             DIFF="$(git diff HEAD~1 HEAD)"
+#           else
+#             DIFF="$(git show HEAD)"
+#           fi
+#           curl -s -X POST http://localhost:8080/v1/chat/completions \
+#             -H "Content-Type: application/json" \
+#             -d '{
+#               "model":"gpt4all-lora-quantized",
+#               "messages":[
+#                 {"role":"system","content":"You are a senior software engineer."},
+#                 {"role":"user","content":"Review this code diff and list potential bugs or edge cases:\n\n'"$DIFF"'"}
+#               ],
+#               "max_tokens":512
+#             }' | jq .
 
 
 
