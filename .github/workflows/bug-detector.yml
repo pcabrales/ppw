@@ -62,20 +62,19 @@ jobs:
           echo "$DIFF" | head -n 20
           echo "…"
           # 3. Build a properly‐escaped payload.json via jq
-          jq -R -s --arg diff "$DIFF" '{
-              model: "hermes-2-theta-llama-3-8b",
-              messages: [
-                {
-                  "role": "system",
-                  "content": "You are a senior software engineer."
-                },
-                {
-                  "role": "user",
-                  "content": "Review this code diff and list potential bugs or edge cases:\n\n" + $diff
-                }
-              ],
-              max_tokens: 512
-            }' > payload.json
+          PROMPT="Review this code diff and list potential bugs or edge cases:\n\n"
+          echo "$DIFF" \
+            | jq -R -s --arg prompt "$PROMPT" '{
+                model: "hermes-2-theta-llama-3-8b",
+                messages: [
+                  { role: "system", content: "You are a senior software engineer." },
+                  {
+                    role: "user",
+                    content: ($prompt + .)
+                  }
+                ],
+                max_tokens: 512
+              }' > payload.json
           # 4. POST it to LocalAI and pretty-print the response
           curl -s \
             -H "Content-Type: application/json" \
