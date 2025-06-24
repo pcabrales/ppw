@@ -59,21 +59,21 @@ jobs:
 
           # 2. Craft a high-specificity prompt -----------------------------------------
           PROMPT=$(cat <<'EOF'
-Task: The unified diff below shows the changes in this commit.
+          Task: The unified diff below shows the changes in this commit.
 
-Produce a concise bullet list of **definite bugs only**.  
-• For each bug, output exactly one line:  
-  <file>:<line> — <bug description>
+          Produce a concise bullet list of bugs.  
+          • For each bug, output exactly one line:  
+            <file>:<line> — <bug description>
 
-Guidelines:
-1. Provide a brief summary of the changes (max. 2 lines).
-2. Report only issues that would certainly cause incorrect behaviour, crashes, data loss, or security vulnerabilities.  
-3. Ignore style, performance micro-optimisations, or “possible”/“potential” issues.  
-4. If no definite bugs are present, respond with the single line:  
-  No bugs detected.
+          Guidelines:
+          1. VERY IMPORTANT: Provide a brief summary of the changes (max. 2 lines).
+          2. Report only issues that would cause incorrect behaviour, crashes, data loss, or security vulnerabilities.  
+          3. Ignore style, performance micro-optimisations, or “possible”/“potential” issues.  
+          4. If no definite bugs are present, respond with the single line:  
+            No bugs detected.
 
-Unified diff:
-EOF
+          Unified diff:
+          EOF
           )
 
           # 3. Build the JSON payload -----------------------------------------------
