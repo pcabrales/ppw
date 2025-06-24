@@ -19,7 +19,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: localai_models
-          key: ${{ runner.os }}-localai-hermes-2-theta-llama-3-8b
+          key: ${{ runner.os }}-localai-codellama-7b-instruct-q5k
 
       - name: Start LocalAI (with cached models)
         run: |
@@ -33,7 +33,7 @@ jobs:
             -e MODELS_PATH=/usr/share/local-ai/models \
             -u $(id -u):$(id -g) \
             localai/localai:master-ffmpeg-core \
-            run --debug hermes-2-theta-llama-3-8b
+            run --debug codellama-7b-instruct-q5k
 
           # Wait until the container reports healthy
           until [ "$(docker inspect -f '{{.State.Health.Status}}' local-ai)" = "healthy" ]; do
@@ -43,43 +43,53 @@ jobs:
           
       - name: Run Bug Detector
         env:
-          # Expose the GitHub–before SHA so we can fallback if needed
           GH_BEFORE: ${{ github.event.before }}
         run: |
           set -e
-          # Compute a diff against the parent commit
+
+          # 1. Compute the diff ------------------------------------------------------
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             BASE=HEAD~1
           else
-            # fetch the parent SHA from the push payload
             BASE=$GH_BEFORE
-            git fetch --no-tags --no-recurse-submodules origin $BASE
+            git fetch --no-tags --no-recurse-submodules origin "$BASE"
           fi
           echo "Comparing $BASE → HEAD"
-          DIFF="$(git diff $BASE HEAD)"
-          PROMPT="Review this code diff and list any potential bugs:\n\n"
-          echo "$DIFF" \
-          | jq -R -s --arg prompt "$PROMPT" '{
-              model: "hermes-2-theta-llama-3-8b",
-              messages: [
-                { role: "system", content: "You are a senior software engineer and seasoned coder with an eye for detecting bugs." },
-                {
-                  role: "user",
-                  content: ($prompt + .)
-                }
-              ],
-              max_tokens: 512
-            }' > payload.json
-          # POST it to LocalAI and pretty-print the response
-          curl -s \
-            -H "Content-Type: application/json" \
-            --data @payload.json \
-            http://localhost:8080/v1/chat/completions \
+          DIFF="$(git diff "$BASE" HEAD)"
+
+          # 2. Craft a high-specificity prompt ---------------------------------------
+          read -r -d '' PROMPT <<'EOF'
+          Task: The unified diff below shows the changes in this commit.
+
+          Produce a concise bullet list of **definite bugs only**.  
+          • For each bug, output exactly one line:  
+            <file>:<line> — <bug description>
+
+          Guidelines:
+          1. Report only issues that would certainly cause incorrect behaviour, crashes, data loss, or security vulnerabilities.  
+          2. Ignore style, performance micro-optimisations, or “possible”/“potential” issues.  
+          3. If no definite bugs are present, respond with the single line:  
+            No bugs detected.
+
+          Unified diff:
+          EOF
+
+          # 3. Build the JSON payload -----------------------------------------------
+          jq -R -s --arg prompt "$PROMPT" '{
+            model: "codellama-7b-instruct-q5k",
+            temperature: 0,
+            top_p: 0.1,
+            max_tokens: 512,
+            messages: [
+              { role: "system",
+                content: "You are a senior software engineer with deep expertise in code review and defect detection." },
+              { role: "user",
+                content: ($prompt + .)
+              }
+            ]
+          }' <<<"$DIFF" > payload.json
+
+          # 4. Query LocalAI and pretty-print the result -----------------------------
+          curl -s -H "Content-Type: application/json" \
+              --data @payload.json http://localhost:8080/v1/chat/completions \
           | jq .
-
-
-      # - name: Fix LocalAI model cache permissions
-      #   if: always()
-      #   run: |
-      #     sudo chown -R $(id -u):$(id -g) localai_models
-      #     sudo chmod -R a+rX localai_models
