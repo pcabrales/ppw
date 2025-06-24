@@ -40,14 +40,13 @@ jobs:
             echo "Waiting for LocalAI to be ready…"
             sleep 2
           done
-
+          
       - name: Run Bug Detector
         env:
           # Expose the GitHub–before SHA so we can fallback if needed
           GH_BEFORE: ${{ github.event.before }}
         run: |
           set -e
-
           # 1. Compute a diff against the parent commit
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             BASE=HEAD~1
@@ -58,33 +57,32 @@ jobs:
           fi
           echo "Comparing $BASE → HEAD"
           DIFF="$(git diff $BASE HEAD)"
-
           # 2. Debug: print diff size and a snippet
           echo "Diff length ($(echo -n "$DIFF" | wc -m) chars):"
           echo "$DIFF" | head -n 20
           echo "…"
-
           # 3. Build a properly‐escaped payload.json via jq
-          echo "$DIFF" \
-            | jq -R -s '{
-                model: "hermes-2-theta-llama-3-8b",
-                messages: [
-                  { role: "system", content: "You are a senior software engineer." },
-                  {
-                    role: "user",
-                    content:
-                      "Review this code diff and list potential bugs or edge cases:\n\n" + .
-                  }
-                ],
-                max_tokens: 512
-              }' > payload.json
-
+          jq -R -s --arg diff "$DIFF" '{
+              model: "hermes-2-theta-llama-3-8b",
+              messages: [
+                {
+                  "role": "system",
+                  "content": "You are a senior software engineer."
+                },
+                {
+                  "role": "user",
+                  "content": "Review this code diff and list potential bugs or edge cases:\n\n" + $diff
+                }
+              ],
+              max_tokens: 512
+            }' > payload.json
           # 4. POST it to LocalAI and pretty-print the response
           curl -s \
             -H "Content-Type: application/json" \
             --data @payload.json \
             http://localhost:8080/v1/chat/completions \
           | jq .
+
 
       - name: Fix LocalAI model cache permissions
         if: always()
