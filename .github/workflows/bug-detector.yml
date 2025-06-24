@@ -65,10 +65,9 @@ jobs:
             <file>:<line> — <bug description>
 
           Guidelines:
-          1. VERY IMPORTANT: Provide a brief summary of the changes (max. 2 lines).
-          2. Report only issues that would cause incorrect behaviour, crashes, data loss, or security vulnerabilities.  
-          3. Ignore style, performance micro-optimisations, or “possible”/“potential” issues.  
-          4. If no definite bugs are present, respond with the single line:  
+          1. Report only issues that would cause incorrect behaviour, crashes, data loss, or security vulnerabilities.  
+          2. Ignore style, performance micro-optimisations, or “possible”/“potential” issues.  
+          3. If no definite bugs are present, respond with the single line:  
             No bugs detected.
 
           Unified diff:
@@ -90,7 +89,17 @@ jobs:
             ]
           }' <<<"$DIFF" > payload.json
 
-          # 4. Query LocalAI and pretty-print the result -----------------------------
-          curl -s -H "Content-Type: application/json" \
-              --data @payload.json http://localhost:8080/v1/chat/completions \
-          | jq -r '.choices[0].message.content'
+          # 4. Query LocalAI and pretty-print the result -----------------------------    
+          RESPONSE=$(curl -s -H "Content-Type: application/json" \
+                --data @payload.json http://localhost:8080/v1/chat/completions)
+
+          OUTPUT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+          printf '%s\n' "$OUTPUT"     # keep the result visible in the log
+
+          # 5. Fail the job if any bug lines are present ---------------------------------
+          if ! printf '%s\n' "$OUTPUT" | grep -Eq '^[[:space:]]*No bugs detected\.[[:space:]]*$'; then
+            echo "✗ One or more bugs were reported – failing the job."
+            exit 1
+          fi
+
+          echo "✓ No bugs detected."
