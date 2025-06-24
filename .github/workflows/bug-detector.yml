@@ -29,6 +29,7 @@ jobs:
             -p 8080:8080 \
             -v ${{ github.workspace }}/localai_models:/usr/share/local-ai/models \
             -e MODELS_PATH=/usr/share/local-ai/models \
+            -u $(id -u):$(id -g) \
             localai/localai:master-ffmpeg-core \
             run --debug hermes-2-theta-llama-3-8b
 
@@ -45,16 +46,25 @@ jobs:
           else
             DIFF="$(git show HEAD)"
           fi
+          # 2. Write the JSON payload to a file
+          cat <<EOF > payload.json
+          {
+            "model": "gpt4all-lora-quantized",
+            "messages": [
+              {"role": "system", "content": "You are a senior software engineer."},
+              {"role": "user",   "content": "Review this code diff and list potential bugs or edge cases:\n\n$DIFF"}
+            ],
+            "max_tokens": 512
+          }
+          EOF
+
+          # 3. Ensure jq is available (optional, for pretty-printing)
+          sudo apt-get update && sudo apt-get install -y jq
+
+          # 4. POST via curl using the file
           curl -s -X POST http://localhost:8080/v1/chat/completions \
             -H "Content-Type: application/json" \
-            -d '{
-              "model":"hermes-2-theta-llama-3-8b",
-              "messages":[
-                {"role":"system","content":"You are a senior software engineer."},
-                {"role":"user","content":"Review this code diff and list potential bugs or edge cases:\n\n'"$DIFF"'"}
-              ],
-              "max_tokens":512
-            }' | jq .
+            --data @payload.json | jq .
 
 
 # name: LLM-Based Bug Scan (LocalAI)
