@@ -19,7 +19,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: localai_models
-          key: ${{ runner.os }}-localai-qwen3-14b
+          key: ${{ runner.os }}-localai-hermes-2-theta-llama-3-8b
 
       - name: Start LocalAI (with cached models)
         run: |
@@ -33,7 +33,7 @@ jobs:
             -e MODELS_PATH=/usr/share/local-ai/models \
             -u $(id -u):$(id -g) \
             localai/localai:master-ffmpeg-core \
-            run --debug qwen3-14b
+            run --debug hermes-2-theta-llama-3-8b
 
           # Wait until the container reports healthy
           until [ "$(docker inspect -f '{{.State.Health.Status}}' local-ai)" = "healthy" ]; do
@@ -59,26 +59,26 @@ jobs:
 
           # 2. Craft a high-specificity prompt -----------------------------------------
           PROMPT=$(cat <<'EOF'
-          Task: The unified diff below shows the changes in this commit.
+Task: The unified diff below shows the changes in this commit.
 
-          Produce a concise bullet list of **definite bugs only**.  
-          • For each bug, output exactly one line:  
-            <file>:<line> — <bug description>
+Produce a concise bullet list of **definite bugs only**.  
+• For each bug, output exactly one line:  
+  <file>:<line> — <bug description>
 
-          Guidelines:
-          1. Provide a brief summary of the changes (max. 2 lines).
-          2. Report only issues that would certainly cause incorrect behaviour, crashes, data loss, or security vulnerabilities.  
-          3. Ignore style, performance micro-optimisations, or “possible”/“potential” issues.  
-          4. If no definite bugs are present, respond with the single line:  
-            No bugs detected.
+Guidelines:
+1. Provide a brief summary of the changes (max. 2 lines).
+2. Report only issues that would certainly cause incorrect behaviour, crashes, data loss, or security vulnerabilities.  
+3. Ignore style, performance micro-optimisations, or “possible”/“potential” issues.  
+4. If no definite bugs are present, respond with the single line:  
+  No bugs detected.
 
-          Unified diff:
-          EOF
+Unified diff:
+EOF
           )
 
           # 3. Build the JSON payload -----------------------------------------------
           jq -R -s --arg prompt "$PROMPT" '{
-            model: "qwen3-14b",
+            model: "hermes-2-theta-llama-3-8b",
             temperature: 0,
             top_p: 0.1,
             max_tokens: 512,
