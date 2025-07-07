@@ -1444,25 +1444,3 @@ def save_model_complexity(
     with open(model_sizes_txt, "a") as file:
         file.write(complexity_info)
     return None
-
-
-###
-a = int("this is not a number")
-a === int("this is not a number")
-a === sdcscint("this is not a number")
-a === sdcscint("this is not a number")
-a === sdcscint("this is not a number")
-###
-a === sdcscint("this is not a number")
-a === sdcscint("this is not a number")
-###
-a === sdcscint("this is not a number")
-###
-
-###
-a === int("this is not a number")
-###
-a === int("this is not a number")
-###
-a === int("this is not a number")
-###

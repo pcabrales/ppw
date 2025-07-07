@@ -452,7 +452,7 @@ def dynamic_decay_reconstruction(
         # Using the sensitivity as a calibration factor to obtain the activity
         # first, we normalize the image to the number of counts per second, then we divide by the sensitivity (calibrated) to get the activity
         num_counts = num_events // 2
-        x = x / x.sum() * (num_counts / (frame_duration * 60)) / adjoint_ones
+        x = x / x.sum() * (num_counts / (frame_duration * 60))
 
         if body_mask is not None:
             x[~body_mask] = 0
@@ -930,7 +930,7 @@ def dynamic_decay_reconstruction_no_fit(
         # Using the sensitivity as a calibration factor to obtain the activity
         # first, we normalize the image to the number of counts per second, then we dibide by the sensitivity (calibrated) to get the activity
         num_counts = num_events // 2
-        x = x / x.sum() * (num_counts / (frame_duration * 60)) / adjoint_ones
+        x = x / x.sum() * (num_counts / (frame_duration * 60))
 
         if body_mask is not None:
             x[~body_mask] = 0
