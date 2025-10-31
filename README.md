@@ -36,8 +36,9 @@ conda activate prototwin-pet-washout
 You will also need:
 - [MatRad](https://e0404.github.io/matRad/) for treatment planning of different patients.
 - CUDA Toolkit 12.3 or higher. It may work with lower versions, but it has only been tested with 12.3 and 12.4.
-- FRED Monte Carlo GPU v 3.70.0:
-    - Install from the [official site](https://www.fred-mc.org/Manual_3.70/Download/Latest%20release.html#latestrelease)
+- FRED Monte Carlo GPU:
+    - Install from the [official site](https://fred-mc.org/)
+    - *Note*: the code has been tested for FRED versions 3.6 and 3.7x.
 - MCGPU-PET software:
     - Install from the [official GitHub page](https://github.com/DIDSR/MCGPU-PET.git)
     - In the `Makefile` line:
