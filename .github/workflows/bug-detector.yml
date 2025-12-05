@@ -1,105 +1,161 @@
 name: LLM-Based Bug Scan
-
 on:
   push:
-    branches:
-      - main
+    branches: [main, development]
 jobs:
   scan:
     runs-on: ubuntu-latest
+    env:
+      MODEL_FILE: qwen2.5-coder-7b-instruct-q3_k_m.gguf
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
+      # -------------------------------------------------------------
+      # Model download / cache
+      # -------------------------------------------------------------
       - name: Restore LocalAI model cache
-        id: cache-model
         uses: actions/cache@v3
         with:
           path: localai_models
-          key: ${{ runner.os }}-localai-hermes-2-theta-llama-3-8b
+          key: ${{ runner.os }}-localai-qwen2.5-coder-7b-instruct-q3_k_m
 
-      - name: Start LocalAI (with cached models)
+      
+      - name: Ensure model is present
         run: |
-          # Pull the latest LocalAI image
-          docker pull localai/localai:master-ffmpeg-core
+          set -e
+          mkdir -p localai_models
+          FILE="localai_models/${MODEL_FILE}"
+          if [ ! -f "$FILE" ]; then
+            echo "Downloading model file $FILE"
+            curl -L -o "$FILE" \
+              https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q3_k_m.gguf
+          fi
+          ls -lh localai_models
 
-          # Run LocalAI, mounting our cache directory
+      # -------------------------------------------------------------
+      # Launch LocalAI
+      # -------------------------------------------------------------
+      - name: Start LocalAI
+        run: |
+          set -euo pipefail
+          echo "MODEL_ID=$MODEL_FILE" >> "$GITHUB_ENV"
+          
+          # Using standard CPU image. 
+          # NOTE: 7B model requires ~4.7GB RAM. GitHub runners have 7GB. 
+          # If this crashes with OOM (Exit 137), switch to a Q3_K_M quant (~3.8GB).
+          docker pull localai/localai:latest-cpu
           docker run -d --name local-ai \
             -p 8080:8080 \
-            -v ${{ github.workspace }}/localai_models:/usr/share/local-ai/models \
-            -e MODELS_PATH=/usr/share/local-ai/models \
-            -u $(id -u):$(id -g) \
-            localai/localai:master-ffmpeg-core \
-            run --debug hermes-2-theta-llama-3-8b
-
-          # Wait until the container reports healthy
-          until [ "$(docker inspect -f '{{.State.Health.Status}}' local-ai)" = "healthy" ]; do
-            echo "Waiting for LocalAI to be ready…"
-            sleep 2
-          done
+            -v "${GITHUB_WORKSPACE}/localai_models":/build/models \
+            -e MODELS_PATH=/build/models \
+            -e THREADS=2 \
+            localai/localai:latest-cpu \
+            run "$MODEL_FILE"
+            
+          # Wait until server is ready (extended timeout for larger model load)
+          timeout 600 bash -c 'until curl -sf http://localhost:8080/readyz; do sleep 10; done'
           
+          # Warm-up call
+          curl -s -H 'Content-Type: application/json' \
+            --data "{\"model\":\"$MODEL_FILE\",\"prompt\":\"ping\",\"max_tokens\":1}" \
+            http://localhost:8080/v1/completions > /dev/null
+
+      # -------------------------------------------------------------
+      # Bug detector
+      # -------------------------------------------------------------
       - name: Run Bug Detector
         env:
           GH_BEFORE: ${{ github.event.before }}
         run: |
-          set -e
-
-          # 1. Compute the diff ------------------------------------------------------
+          set -euo pipefail
+          MODEL_ID="${MODEL_ID:-$MODEL_FILE}"
+          
+          # --- diff --------------------------------------------------------
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
             BASE=HEAD~1
           else
-            BASE=$GH_BEFORE
+            BASE="$GH_BEFORE"
             git fetch --no-tags --no-recurse-submodules origin "$BASE"
           fi
-          echo "Comparing $BASE → HEAD"
-          DIFF="$(git diff "$BASE" HEAD)"
+          DIFF=$(git diff "$BASE" HEAD)
+          if [ -z "$DIFF" ]; then
+            echo "No diff to scan (empty or first commit)."
+            exit 0
+          fi
 
-          # 2. Craft a high-specificity prompt -----------------------------------------
-          PROMPT=$(cat <<'EOF'
-          Task: The unified diff below shows the changes in this commit.
-
-          Produce a concise bullet list of bugs.  
-          • For each bug, output exactly one line:  
-            <file>:<line> — <bug description>
-
-          Guidelines:
-          1. Report only issues that would cause incorrect behaviour, crashes, data loss, or security vulnerabilities.  
-          2. Ignore style, performance micro-optimisations, or “possible”/“potential” issues.  
-          3. If no definite bugs are present, respond with the single line:  
-            No bugs detected.
-
+          # Build user prompt
+          PROMPT_HEADER=$(cat << 'EOF'
+          Task: Analyze the unified diff below for critical defects.
+          Rules:
+          1. Think step-by-step to verify the logic.
+          2. Report ONLY definite defects (crashes, security risks, logical errors).
+          3. Format output as: <file>:<line> — <description>
+          4. If no bugs are found, output EXACTLY: No bugs detected.
           Unified diff:
           EOF
           )
+          PROMPT="${PROMPT_HEADER}${DIFF}"
 
-          # 3. Build the JSON payload -------------------------------------------------------------------------
-          jq -R -s --arg prompt "$PROMPT" '{
-            model: "hermes-2-theta-llama-3-8b",
-            temperature: 0.2,   
-            top_p: 0.95,       
-            max_tokens: 512,
+          # Build JSON payload
+          jq -n --arg model "$MODEL_ID" --arg content "$PROMPT" '
+          {
+            model:       $model,
+            temperature: 0.1,
+            top_p:       0.1,
+            max_tokens:  1024,
             messages: [
-              { role: "system",
-                content: "You are a senior software engineer with deep expertise in code review and defect detection." },
-              { role: "user",
-                content: ($prompt + .)
+              {
+                role:    "system",
+                content: "You are a senior code review expert. You are meticulous and precise."
+              },
+              {
+                role:    "user",
+                content: $content
               }
             ]
-          }' <<<"$DIFF" > payload.json
+          }' > payload.json
 
-          # 4. Query LocalAI and pretty-print the result -----------------------------    
-          RESPONSE=$(curl -s -H "Content-Type: application/json" \
-                --data @payload.json http://localhost:8080/v1/chat/completions)
+          echo "### Model payload (first 30 lines)" >> "$GITHUB_STEP_SUMMARY"
+          head -n 30 payload.json >> "$GITHUB_STEP_SUMMARY"
 
-          OUTPUT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
-          printf '%s\n' "$OUTPUT"     # keep the result visible in the log
+          # ---------------- query ----------------
+          RESPONSE=$(curl --fail-with-body -sS \
+            -H 'Content-Type: application/json' \
+            --data @payload.json \
+            http://localhost:8080/v1/chat/completions)
 
-          # 5. Fail the job if any bug lines are present ---------------------------------
-          if ! printf '%s\n' "$OUTPUT" | grep -Eq '^[[:space:]]*No bugs detected\.[[:space:]]*$'; then
-            echo "✗ One or more bugs were reported – failing the job."
-            exit 1
+          # Extract content
+          RAW_OUTPUT=$(jq -r '.choices[0].message.content // empty' <<< "$RESPONSE")
+          
+          # CLEANUP: Remove <think> blocks common in DeepSeek/R1 models
+          OUTPUT=$(echo "$RAW_OUTPUT" | sed -e 's/<think>.*<\/think>//g' | sed -e :a -e 's/<think>.*//g;N;s/\n/ /;ta' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          
+          # Fallback if empty after cleanup
+          if [ -z "$OUTPUT" ]; then
+            OUTPUT='No bugs detected.'
           fi
 
-          echo "✓ No bugs detected."
+          echo "BUG DETECTION OUTPUT:"
+          printf '%s\n' "$OUTPUT"
+          
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Model Analysis" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+
+          # Check for failure condition
+          if ! grep -Eq '^[[:space:]]*No bugs detected\.[[:space:]]*$' <<< "$OUTPUT"; then
+            echo "One or more bugs were reported – failing the job."
+            exit 1
+          fi
+          echo "No bugs detected."
+
+      - name: Dump LocalAI logs on failure
+        if: failure()
+        run: docker logs local-ai || true
+        
+      - name: Stop LocalAI container
+        if: always()
+        run: docker rm -f local-ai || true
