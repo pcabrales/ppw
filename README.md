@@ -1,8 +1,14 @@
 # PROTOTWIN-PET Washout (PPW): Mapping Intratumoral Heterogeneity Through PET-derived Washout and Deep Learning After Proton Therapy
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pcabrales/ppw)
-
 ![](./images/ppw-framework-abstract.png)
+
+[![Published Paper](https://img.shields.io/badge/Paper-Published-green)](https://www.sciencedirect.com/science/article/pii/S001048252600209X)
+
+You can access the paper, published at the *Computers in Biology and Medicine* journal at the following link:
+
+**[Mapping intratumoral heterogeneity through PET-derived washout and deep learning after proton therapy](https://www.sciencedirect.com/science/article/pii/S001048252600209X)**
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/pcabrales/ppw)
 
 This repository was developed by Pablo Cabrales, PhD candidate at the Nuclear Physics Group, Complutense University of Madrid. Please e-mail [pcabrale@ucm.es](mailto:pcabrale@ucm.es) for any inquiries.
 
